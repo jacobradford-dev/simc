@@ -6015,8 +6015,12 @@ struct rapid_fire_t: public hunter_ranged_attack_t
     if ( d->ticks_left() == 0 )
     {
       p()->buffs.in_the_rhythm->trigger();
-      arcane_shot_background = p()->get_background_action<arcane_shot_background_t>( "arcane_shot_background" );
-      arcane_shot_background->execute_on_target( target );
+
+      if ( p()->talents.unload.ok() )
+      {
+        arcane_shot_background = p()->get_background_action<arcane_shot_background_t>( "arcane_shot_background" );
+        arcane_shot_background->execute_on_target( target );
+      }
     }
   }
 
