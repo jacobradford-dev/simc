@@ -732,6 +732,7 @@ public:
     spell_data_ptr_t kill_zone_debuff;
     spell_data_ptr_t salvo;
     spell_data_ptr_t bullet_hell;
+    spell_data_ptr_t unload;
 
     // Beast Mastery Tree
     spell_data_ptr_t kill_command_bm_player;
@@ -4194,6 +4195,14 @@ struct arcane_shot_t : public arcane_shot_base_t
   }
 };
 
+struct arcane_shot_background_t : public arcane_shot_base_t
+{
+  arcane_shot_background_t( util::string_view n, hunter_t* p ) : arcane_shot_base_t( n, p )
+  {
+    background = dual = proc = true;
+  }
+};
+
 // Counter Shot (Marksmanship/Beast Mastery Talent) ===========================================================
 
 struct counter_shot_t : public hunter_ranged_attack_t
@@ -5926,6 +5935,8 @@ struct rapid_fire_t: public hunter_ranged_attack_t
   rapid_fire_tick_aspect_of_the_hydra_t* aspect_of_the_hydra = nullptr;
   int base_num_ticks;
 
+  arcane_shot_background_t* arcane_shot_background = nullptr;
+
   struct {
     double chance = 0; 
   } deathblow;
@@ -5974,6 +5985,12 @@ struct rapid_fire_t: public hunter_ranged_attack_t
 
     if ( p()->buffs.lunar_storm_ready->up() )
       p()->trigger_lunar_storm( target );
+
+    if ( p()->talents.unload.ok() )
+    {
+      arcane_shot_background = p()->get_background_action<arcane_shot_background_t>( "arcane_shot_background" );
+      arcane_shot_background->execute_on_target( target );
+    }
   }
 
   void tick( dot_t* d ) override
@@ -5998,6 +6015,8 @@ struct rapid_fire_t: public hunter_ranged_attack_t
     if ( d->ticks_left() == 0 )
     {
       p()->buffs.in_the_rhythm->trigger();
+      arcane_shot_background = p()->get_background_action<arcane_shot_background_t>( "arcane_shot_background" );
+      arcane_shot_background->execute_on_target( target );
     }
   }
 
@@ -8197,6 +8216,7 @@ void hunter_t::init_spells()
     talents.kill_zone_debuff                  = talents.kill_zone.ok() ? find_spell( 393480 ) : spell_data_t::not_found();
     talents.salvo                             = find_talent_spell( talent_tree::SPECIALIZATION, "Salvo", HUNTER_MARKSMANSHIP );
     talents.bullet_hell                       = find_talent_spell( talent_tree::SPECIALIZATION, "Bullet Hell", HUNTER_MARKSMANSHIP );
+    talents.unload                            = find_talent_spell( talent_tree::SPECIALIZATION, "Unload", HUNTER_MARKSMANSHIP );
   }
 
   // Beast Mastery Tree
