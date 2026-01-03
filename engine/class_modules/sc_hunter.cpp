@@ -475,6 +475,7 @@ public:
     buff_t* bulletstorm;
     buff_t* volley;
     buff_t* double_tap;
+    buff_t* focus_fire;
 
     // Beast Mastery Tree
     std::array<buff_t*, BARBED_SHOT_BUFFS_MAX> barbed_shot;
@@ -733,6 +734,8 @@ public:
     spell_data_ptr_t salvo;
     spell_data_ptr_t bullet_hell;
     spell_data_ptr_t unload;
+    spell_data_ptr_t focus_fire;
+    spell_data_ptr_t focus_fire_buff;
 
     // Beast Mastery Tree
     spell_data_ptr_t kill_command_bm_player;
@@ -1016,6 +1019,7 @@ public:
     action_t* symphonic_arsenal = nullptr;
     action_t* lunar_storm_initial = nullptr;
     action_t* lunar_storm_periodic = nullptr;
+    action_t* sanctified_armaments = nullptr;
 
     action_t* phantom_pain = nullptr;
 
@@ -5958,6 +5962,9 @@ struct rapid_fire_t: public hunter_ranged_attack_t
       aspect_of_the_hydra = p->get_background_action<rapid_fire_tick_aspect_of_the_hydra_t>( "rapid_fire_tick_aspect_of_the_hydra" );
       add_child( aspect_of_the_hydra );
     }
+
+    if ( p->talents.unload.ok() )
+      arcane_shot_background = p->get_background_action<arcane_shot_background_t>( "arcane_shot_background" );
   }
 
   void init() override
@@ -5986,11 +5993,8 @@ struct rapid_fire_t: public hunter_ranged_attack_t
     if ( p()->buffs.lunar_storm_ready->up() )
       p()->trigger_lunar_storm( target );
 
-    if ( p()->talents.unload.ok() )
-    {
-      arcane_shot_background = p()->get_background_action<arcane_shot_background_t>( "arcane_shot_background" );
+    if ( p()->talents.unload.ok() && arcane_shot_background )
       arcane_shot_background->execute_on_target( target );
-    }
   }
 
   void tick( dot_t* d ) override
@@ -6010,23 +6014,21 @@ struct rapid_fire_t: public hunter_ranged_attack_t
 
     p()->consume_trick_shots();
     p()->buffs.double_tap->expire();
+    p()->buffs.focus_fire->expire();
 
-    //If a Rapid Fire is cancelled it does not trigger In The Rhythm
+    // If a Rapid Fire is cancelled it does not trigger In The Rhythm
     if ( d->ticks_left() == 0 )
     {
       p()->buffs.in_the_rhythm->trigger();
 
-      if ( p()->talents.unload.ok() )
-      {
-        arcane_shot_background = p()->get_background_action<arcane_shot_background_t>( "arcane_shot_background" );
+      if ( p()->talents.unload.ok() && arcane_shot_background )
         arcane_shot_background->execute_on_target( target );
-      }
     }
   }
 
   timespan_t composite_dot_duration( const action_state_t* s ) const override
   {
-    // substract 1 here because RF has a tick at zero
+    // subtract 1 here because RF has a tick at zero
     double num_ticks = base_num_ticks - 1;
 
     if ( p()->buffs.double_tap->check() )
@@ -6059,6 +6061,15 @@ struct rapid_fire_t: public hunter_ranged_attack_t
       m /= 1 + p() -> talents.trueshot -> effectN( 1 ).percent();
 
     return m;
+  }
+
+  double composite_da_multiplier( const action_state_t* s ) const override
+  {
+    double am = hunter_ranged_attack_t::composite_da_multiplier( s );
+
+    am *= 1 + p()->buffs.focus_fire->check_value();
+
+    return am;
   }
 };
 
@@ -8221,6 +8232,8 @@ void hunter_t::init_spells()
     talents.salvo                             = find_talent_spell( talent_tree::SPECIALIZATION, "Salvo", HUNTER_MARKSMANSHIP );
     talents.bullet_hell                       = find_talent_spell( talent_tree::SPECIALIZATION, "Bullet Hell", HUNTER_MARKSMANSHIP );
     talents.unload                            = find_talent_spell( talent_tree::SPECIALIZATION, "Unload", HUNTER_MARKSMANSHIP );
+    talents.focus_fire                        = find_talent_spell( talent_tree::SPECIALIZATION, "Focus Fire", HUNTER_MARKSMANSHIP );
+    talents.focus_fire_buff                   = talents.focus_fire.ok() ? find_spell( 1277549 ) : spell_data_t::not_found();
   }
 
   // Beast Mastery Tree
@@ -8699,6 +8712,10 @@ void hunter_t::create_buffs()
       -> set_cooldown( 0_ms )
       -> disable_ticking( true ) // disable ticks as an optimization
       -> set_refresh_behavior( buff_refresh_behavior::DURATION );
+
+  buffs.focus_fire = 
+    make_buff( this, "focus_fire", talents.focus_fire_buff )
+      ->set_default_value_from_effect( 1 );
 
   // Beast Mastery Tree
 
